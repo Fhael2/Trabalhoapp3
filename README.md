@@ -2,7 +2,7 @@
 
 App de plantas feito em Jetpack Compose. Cadastra as plantas, mostra quando precisa regar e tem uma lista de tarefas de cuidado (adubar, podar, trocar vaso).
 
-Trabalho 3 (Room) - continuação do Trabalho 2. Agora os dados ficam salvos no banco do aparelho e continuam lá depois de fechar o app.
+Trabalho 3 (Room) - continuação do Trabalho 2. Agora os dados ficam salvos no banco do aparelho (SQLite, usando o Room) e continuam lá depois de fechar o app.
 
 Integrantes:
 - Fhael Saporiti Vispo
@@ -10,8 +10,9 @@ Integrantes:
 
 ## Como rodar
 
-1. Abrir a pasta do projeto no Android Studio e esperar o Gradle sincronizar (o Room e o KSP já estão configurados nos arquivos do Gradle).
-2. Rodar no emulador ou celular. O banco é criado sozinho na primeira vez que o app abre, não precisa configurar nada.
+1. Clonar ou baixar o repositório e abrir a pasta do projeto no Android Studio. O caminho da pasta não pode ter acento nem caractere especial (por exemplo "Área de Trabalho"), senão o Gradle dá erro.
+2. Esperar o Gradle sincronizar. O Room e o KSP já estão configurados nos arquivos do Gradle.
+3. Rodar no emulador ou no celular. O banco é criado sozinho na primeira vez que o app abre, não precisa configurar nada.
 
 Pra testar a persistência: cadastrar uma planta, fechar o app de verdade (tirar da lista de apps recentes), abrir de novo e ver que a planta continua lá.
 
@@ -37,10 +38,11 @@ No Trabalho 2 o app já tinha navegação de verdade (NavHost) e dois tipos de i
 
 Pra chegar até aqui:
 - Plant e CareTask viraram @Entity e criamos o PlantDao, o CareTaskDao e o AppDatabase.
-- Tiramos as listas e as funções de regar/mudar frequência/marcar tarefa de dentro do BrotoApp. Agora ele só tem a barra de cima, a barra de baixo e o NavHost.
+- Tiramos as listas e as funções de regar, mudar frequência e marcar tarefa de dentro do BrotoApp. Agora ele só tem a barra de cima, a barra de baixo e o NavHost.
 - Cada tela busca no banco o que precisa quando abre (LaunchedEffect) e todo adicionar, editar e remover grava no banco.
 - As telas de detalhe agora só recebem o id pela rota e buscam o item no banco, em vez de receber o objeto pronto.
 - As plantas e tarefas de exemplo saíram, o app começa vazio.
+- Também melhoramos o visual (explicado mais abaixo).
 
 ### Como criamos Entity, DAO e Database
 
@@ -67,13 +69,27 @@ Pra chegar até aqui:
 - No adicionar, se a tela voltava pra lista logo depois de mandar salvar, a lista podia abrir antes da planta chegar no banco e aparecer sem ela. Resolvemos fazendo o `popBackStack` só depois do `inserir` terminar (voltando pra thread principal com `withContext(Dispatchers.Main)`), e deixando o botão Salvar desligado enquanto salva.
 - No Gradle, o plugin do KSP precisa estar configurado antes de usar a linha `ksp(...)` do Room, senão o Gradle não reconhece.
 
+### Visual
+
+Depois que o Room estava funcionando, a gente quis deixar o app mais bonito, porque o visual do Trabalho 2 estava muito básico. Isso deu mais trabalho do que parecia:
+- O tema tinha a paleta verde, mas no emulador o app aparecia com outras cores. O motivo era o `dynamicColor`, que no Android 12 pra cima usa as cores do sistema e ignora a nossa paleta. Desligamos ele e completamos a paleta nos temas claro e escuro.
+- Só trocar a cor não resolveu, o app continuava parecendo uma lista simples. Então mudamos o layout: cabeçalho colorido em cada tela de lista, avatar com a inicial do nome da planta, cards arredondados, botões maiores e a tela de Resumo em grade com cards lado a lado.
+- Como isso se repete em várias telas, juntamos o avatar, o cabeçalho e as formas arredondadas no arquivo `Componentes.kt`, pra não copiar o mesmo código em cada tela.
+- Tudo foi feito só com o que vimos em aula (Surface, Card, Row, Column, Spacer, Modifier e MaterialTheme).
+
+Telas depois das mudanças (todas lendo do banco):
+
+<img src="prints/t3-tarefas.png" width="220"> <img src="prints/t3-nova-tarefa.png" width="220"> <img src="prints/t3-resumo.png" width="220">
+
 ### Teste de persistência
 
-TODO: colocar aqui os prints ou o link do vídeo mostrando: adicionar um item, fechar o app, abrir de novo e o item continuar lá.
+TODO: colocar aqui o vídeo (ou prints em sequência) mostrando: adicionar um item, fechar o app de verdade, abrir de novo e o item continuar lá.
 
 ### Dificuldades do trio
 
-TODO: escrever como foi pra cada um e como resolveram.
+- A parte que mais deu trabalho foi o visual, porque queríamos que o app ficasse bonito sem usar nada que não foi visto em aula. Fomos testando no emulador e ajustando até chegar no resultado.
+- Na hora de rodar o projeto deu erro no Gradle porque o caminho da pasta tinha um acento ("Área de Trabalho"). Resolvemos movendo o projeto pra uma pasta sem acento.
+- Também tivemos que ajustar as telas, porque elas dependiam das listas que estavam no BrotoApp. Cada uma precisou passar a buscar os próprios dados no banco.
 
 ## Documentação do Trabalho 2
 
