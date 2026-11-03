@@ -2,6 +2,8 @@
 
 App de plantas feito em Jetpack Compose. Cadastra as plantas, mostra quando precisa regar e tem uma lista de tarefas de cuidado (adubar, podar, trocar vaso).
 
+Trabalho 4 (MVVM) - refatoração do Trabalho 3 com Repository, ViewModel e UiState, sem telas ou funcionalidades novas.
+
 Trabalho 3 (Room) - continuação do Trabalho 2. Agora os dados ficam salvos no banco do aparelho (SQLite, usando o Room) e continuam lá depois de fechar o app.
 
 Integrantes:
@@ -29,6 +31,75 @@ Se mudar os campos de uma Entity depois de já ter rodado o app, desinstalar o a
 - Detalhes da Tarefa
 
 Plantas, Tarefas e Resumo ficam na barra de baixo.
+
+## Documentação do Trabalho 4
+
+### O que mudou em relação ao Trabalho 3
+
+No Trabalho 3 cada tela abria o banco, pegava o DAO e fazia tudo sozinha: buscava os dados com `CoroutineScope(Dispatchers.IO).launch`, guardava o resultado em `mutableStateOf` e chamava `carregar()` de novo depois de cada alteração. Agora o app segue MVVM:
+
+- As telas só mostram o que está no `uiState` (lido com `collectAsState()`) e chamam métodos do ViewModel. Nenhuma tela conhece DAO, `CoroutineScope` ou `Dispatchers.IO`.
+- Cada tela tem um ViewModel com um `data class ...UiState`, um `MutableStateFlow` privado (`_uiState`) e um `StateFlow` público (`uiState`) criado com `asStateFlow()`.
+- Os ViewModels só falam com os Repositories, dentro de `viewModelScope.launch`.
+- Os Repositories são os únicos que falam com os DAOs.
+- Os `buscarTodos()` (e os outros `buscar...` de leitura) dos DAOs agora retornam `Flow` e não são mais `suspend`. Por isso as telas atualizam sozinhas quando o banco muda e o `carregar()` deixou de existir.
+
+Não foi criada nenhuma tela nova nem funcionalidade nova.
+
+### Como decidimos os pacotes
+
+```
+com.example.brotoapp
+├── MainActivity.kt
+├── data
+│   ├── local        Plant, CareTask, PlantDao, CareTaskDao, AppDatabase
+│   └── repository   PlantRepository, CareTaskRepository
+├── viewmodel        ViewModels, UiStates e Factories
+└── ui               telas, navegação, rotas e componentes
+    └── theme
+```
+
+- `data.local`: tudo que é Room (Entities, DAOs e o Database).
+- `data.repository`: os Repositories, uma camada entre o ViewModel e o DAO.
+- `viewmodel`: um arquivo por tela com o UiState, o ViewModel e a Factory daquela tela.
+- `ui`: tudo que é Composable.
+- `MainActivity` ficou na raiz porque é a porta de entrada do app e é ela que monta o banco e os Repositories.
+
+### Por que existe o Repository
+
+Um Repository por Entity (`PlantRepository` e `CareTaskRepository`). O ViewModel não precisa saber que os dados vêm do Room: ele só chama o Repository. Se um dia a origem dos dados mudar, o ViewModel continua igual. Aqui o Repository só repassa as chamadas para o DAO, mas é o único lugar que faz isso.
+
+### O que tem em cada UiState
+
+| UiState | Campos |
+|---|---|
+| `PlantListUiState` | `plantas`, `atrasadas`, `carregou` |
+| `PlantFormUiState` | `nome`, `especie`, `frequenciaTexto`, `erro`, `salvando` |
+| `PlantDetailUiState` | `planta`, `tarefas` |
+| `TaskListUiState` | `tarefas`, `plantas`, `pendentes`, `concluidas`, `carregou` |
+| `TaskFormUiState` | `titulo`, `descricao`, `plantaId`, `erro`, `salvando`, `plantas`, `carregou` |
+| `TaskDetailUiState` | `tarefa`, `planta` |
+| `SummaryUiState` | `totalPlantas`, `atrasadas`, `pendentes`, `concluidas` |
+
+### ViewModelFactory
+
+Como os ViewModels recebem Repositories no construtor, cada um tem uma Factory (`...ViewModelFactory`) que recebe os Repositories e cria o ViewModel. A tela usa `viewModel(factory = XViewModelFactory(repository))`. Os Repositories são criados uma vez na `MainActivity` e passados para as telas pela `BrotoApp`.
+
+### O que quebrou / o que não quebrou
+
+- O comportamento visível do app é o mesmo do Trabalho 3 (mesmas telas, mesmos textos, mesmas mensagens de erro).
+- Foi preciso adicionar as dependências `lifecycle-viewmodel-ktx` e `lifecycle-viewmodel-compose` no Gradle, necessárias para `ViewModel`, `viewModelScope` e `viewModel(factory = ...)`.
+- Como o `viewModelScope.launch` roda na thread principal, o `navController.popBackStack()` depois de salvar é chamado direto pelo callback `aoSalvar`, sem precisar do `withContext(Dispatchers.Main)` que existia antes.
+- As leituras (`collect`) não têm `try/catch`; só as escritas (inserir, atualizar, deletar) têm, com `Log.e`.
+- Todos os comentários foram removidos do código.
+
+### Dificuldades do trio
+
+- Entender o `Flow` no lugar do `suspend` nos DAOs. No Trabalho 3 a gente chamava `buscarTodos()` e pegava a lista na hora. Agora o DAO devolve um fluxo que avisa a tela toda vez que o banco muda, e demorou um pouco pra entender que por isso o `carregar()` não precisa mais existir.
+- Entender pra que serve a Factory. O ViewModel recebe o Repository no construtor, e o Android não sabe criar esse ViewModel sozinho, então foi preciso criar uma Factory pra cada um.
+- Decidir o que vai em cada UiState. Foi preciso separar o que a tela precisa mostrar (lista, contagens, texto de erro, se está salvando) do que é só lógica do ViewModel.
+- Voltar pra tela anterior depois de salvar. A tela não pode mais fazer o `popBackStack()` sozinha no fim do salvamento, então o ViewModel recebe uma função (`aoSalvar`) que a tela passa pra ele.
+- Arrumar os imports depois de mover os arquivos pros pacotes novos, porque o nome do pacote de cada arquivo teve que mudar junto.
 
 ## Documentação do Trabalho 3
 
